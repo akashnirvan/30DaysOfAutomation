@@ -49,8 +49,7 @@ This system automates **invoice creation, placeholder replacement, database logg
 ### Required Files & Links
 - **Invoice Database:** [Google Sheet Link](https://docs.google.com/spreadsheets/d/1I3Kq-T9-Oc9SPtClhazH6ypjl_mUj7i3v0rcdZNroG8/edit?usp=sharing)
 - **Invoice Template:** [Template Sheet Link](https://docs.google.com/spreadsheets/d/1pk7N3ea5970RouQgEaMNndpofQ_ZY7FBSk9C1bH7PZk/edit?usp=sharing)
-- **Workflow Diagram:** ![Workflow Screenshot](./a6ff501c-8519-4a95-ba54-c91495a49190.png)
--  **Custumer Detail:** ![Google Sheet Link](https://docs.google.com/spreadsheets/d/1q-lMpQMHDDjF5bhrV2slt7x84J0Leu8W73aEyjO-BjM/edit?usp=sharing)
+-  **Custumer Detail:** [Google Sheet Link](https://docs.google.com/spreadsheets/d/1q-lMpQMHDDjF5bhrV2slt7x84J0Leu8W73aEyjO-BjM/edit?usp=sharing)
 - 
 
 ### Setup Steps
