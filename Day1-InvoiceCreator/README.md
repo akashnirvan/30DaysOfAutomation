@@ -48,8 +48,10 @@ This system automates **invoice creation, placeholder replacement, database logg
 
 ### Required Files & Links
 - **Invoice Database:** [Google Sheet Link](https://docs.google.com/spreadsheets/d/1I3Kq-T9-Oc9SPtClhazH6ypjl_mUj7i3v0rcdZNroG8/edit?usp=sharing)
-- **Invoice Template:** [Template Sheet Link](https://docs.google.com/spreadsheets/d/1t2q_BME3Iv4QmaBWcg5HAZLlWT_ZJUKzipBuq_bvOKg/edit?usp=sharing)
+- **Invoice Template:** [Template Sheet Link](https://docs.google.com/spreadsheets/d/1pk7N3ea5970RouQgEaMNndpofQ_ZY7FBSk9C1bH7PZk/edit?usp=sharing)
 - **Workflow Diagram:** ![Workflow Screenshot](./a6ff501c-8519-4a95-ba54-c91495a49190.png)
+-  **Custumer Detail:** ![Google Sheet Link](https://docs.google.com/spreadsheets/d/1q-lMpQMHDDjF5bhrV2slt7x84J0Leu8W73aEyjO-BjM/edit?usp=sharing)
+- 
 
 ### Setup Steps
 1. Import provided n8n workflow JSON (coming soon).
@@ -87,13 +89,13 @@ This system automates **invoice creation, placeholder replacement, database logg
 
 ## Google Sheet & Template Links
 - **Invoice Database:** [Open here](https://docs.google.com/spreadsheets/d/1I3Kq-T9-Oc9SPtClhazH6ypjl_mUj7i3v0rcdZNroG8/edit?usp=sharing)
-- **Invoice Template:** [Open here](https://docs.google.com/spreadsheets/d/1t2q_BME3Iv4QmaBWcg5HAZLlWT_ZJUKzipBuq_bvOKg/edit?usp=sharing)
+- **Invoice Template:** [Open here](https://docs.google.com/spreadsheets/d/1pk7N3ea5970RouQgEaMNndpofQ_ZY7FBSk9C1bH7PZk/edit?usp=sharing)
 
 ---
 
 ## Code Snippets
 
-### Invoice Number Generator
+### Generate base number
 ```javascript
 const rows = items;
 let lastInvoiceNum = "INV-000";
@@ -116,22 +118,130 @@ return [
 
 ### Chunk Products
 ```javascript
+const data = $('Webhook1').first().json;
+const products = data.body.products || [];
+const chunkSize = 10;
+
 function chunkArray(arr, size) {
   return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
     arr.slice(i * size, i * size + size)
   );
 }
 
-const chunks = chunkArray($json.body.products || [], 10);
+const chunks = chunkArray(products, chunkSize);
 
 return chunks.map((chunk, i) => ({
   json: {
-    customer: $json.body.customer,
-    grandTotal: $json.body.grandTotal,
+    customer: data.body.customer,
+    grandTotal: data.body.grandTotal,
     products: chunk,
     invoiceChunkIndex: i
   }
 }));
+```
+
+### Add Invoice Number1
+```javascript
+const baseIndex = $items("Generate Base Invoice Number1")[0].json.startInvoiceIndex;
+const thisChunkIndex = $json.invoiceChunkIndex;
+
+if (thisChunkIndex === undefined || isNaN(thisChunkIndex)) {
+  // Prevent invalid chunk
+  return [];
+}
+
+const finalInvoiceNo = `INV-${String(baseIndex + thisChunkIndex).padStart(3, "0")}`;
+
+return [{
+  json: {
+    ...$json,
+    invoiceNumber: finalInvoiceNo
+  }
+}];
+```
+
+### Return Count
+```javascript
+const count = $('Chunk Products1').first().json.products.length;
+const result = count.toString() + ' products';
+
+return [
+  {
+    json: {
+      result
+    }
+  }
+];
+```
+
+### Return Essential Data
+```javascript
+const products = $input.first().json.products;
+// Calculate totals
+const totals = products.reduce((acc, product) => {
+  acc.totalPrice += product.total || 0;
+  acc.totalQuantity += product.quantity || 0;
+  return acc;
+}, { totalPrice: 0, totalQuantity: 0 });
+
+// Add current date (formatted as YYYY-MM-DD)
+const today = new Date().toISOString().split('T')[0];
+
+return [{
+  json: {
+    totalPrice: totals.totalPrice,
+    totalQuantity: totals.totalQuantity,
+    date: today
+  }
+}];
+```
+
+### Create cell update
+```javascript
+const customer =$('Add Invoice Number1').first().json.customer;
+const products = $('Add Invoice Number1').first().json.products;
+const invoiceNumber =$('Add Invoice Number1').first().json.invoiceNumber;
+const issueDate = new Date().toISOString().split("T")[0];
+const dueDate = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+const grandTotal =$('Webhook1').first().json.body.grandTotal;
+
+const customerCells = [
+  { range: 'Getinvoice.co!C8', values: [[customer.name || '']] },
+  { range: 'Getinvoice.co!C9', values: [[customer.email || '']] },
+  { range: 'Getinvoice.co!C10', values: [[customer.address || '']] },
+  { range: 'Getinvoice.co!F3', values: [[issueDate]] },
+  { range: 'Getinvoice.co!F6', values: [[dueDate]] },
+  { range: 'Getinvoice.co!F4', values: [[invoiceNumber]] },
+  { range: 'Getinvoice.co!F25', values: [[grandTotal]] }
+];
+
+const productStartRow = 14;
+const productCells = [];
+products.forEach((product, i) => {
+  const row = productStartRow + i;
+  productCells.push(
+    { range: `Getinvoice.co!A${row}`, values: [[`${i + 1}`]] },
+    { range: `Getinvoice.co!B${row}`, values: [[product.name]] },
+    { range: `Getinvoice.co!D${row}`, values: [[product.quantity]] },
+    { range: `Getinvoice.co!E${row}`, values: [[product.price]] },
+    { range: `Getinvoice.co!F${row}`, values: [[product.total]] }
+  );
+});
+
+return [{
+  json: {
+    valueInputOption: 'USER_ENTERED',
+    data: [...customerCells, ...productCells],
+    sheetId:  $('Copy file1').first().json.id // Pass from previous node if needed
+  }
+}];
+```
+
+### Batch Update
+```javascript
+{
+  "Content-Type": "application/json"
+}
 ```
 
 ---
